@@ -256,7 +256,7 @@ function checkAnswerTimeout(){
   state.combo = 0;
 
   // 점수 감점
-  const penalty = 20;
+  const penalty = 100;
   state.score = Math.max(0, state.score - penalty);
   document.getElementById('score').innerText = state.score;
 
