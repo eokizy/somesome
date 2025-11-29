@@ -356,3 +356,76 @@ async function loadRanking() {
     box.innerHTML = "랭킹을 불러오는 중 오류 발생!";
   }
 }
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js";
+  import { getFirestore, collection, addDoc, query, orderBy, limit, getDocs } 
+    from "https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyD6MCzGTSI4ECLqg7FjKOKwsL-rLNH5YAg",
+    authDomain: "somesome-b9a49.firebaseapp.com",
+    projectId: "somesome-b9a49",
+    storageBucket: "somesome-b9a49.firebasestorage.app",
+    messagingSenderId: "237879091690",
+    appId: "1:237879091690:web:5e1b5ea6908904f978d293",
+    measurementId: "G-4QN3DYJJFB"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  async function saveScore(name, score) {
+    await addDoc(collection(db, "scores"), {
+      name: name,
+      score: score,
+      timestamp: Date.now()
+    });
+  }
+
+  async function getTop10Scores() {
+    const q = query(
+      collection(db, "scores"),
+      orderBy("score", "desc"),
+      limit(10)
+    );
+    const snapshot = await getDocs(q);
+    let list = [];
+
+    snapshot.forEach(doc => {
+      list.push(doc.data());
+    });
+
+    return list;
+  }
+
+  window.saveScore = saveScore;
+  window.getTop10Scores = getTop10Scores;
+
+  const rankingBtn = document.getElementById("rankingBtn");
+  const rankingView = document.getElementById("rankingView");
+  const rankingContent = document.getElementById("rankingContent");
+  const rankingBackBtn = document.getElementById("rankingBackBtn");
+  const homeView = document.getElementById("homeView");
+
+  rankingBtn.addEventListener("click", async () => {
+    homeView.classList.add("hidden");
+    rankingView.classList.remove("hidden");
+
+    // 데이터 가져오기
+    const top10 = await getTop10Scores();
+
+    // HTML 변환
+    let html = "<ol>";
+    top10.forEach((item, i) => {
+      html += `<li>${i + 1}위 - ${item.name} : ${item.score}점</li>`;
+    });
+    html += "</ol>";
+
+    rankingContent.innerHTML = html;
+  });
+
+  rankingBackBtn.addEventListener("click", () => {
+    rankingView.classList.add("hidden");
+    homeView.classList.remove("hidden");
+  });
+</script>
