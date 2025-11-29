@@ -106,14 +106,21 @@
         </div>
     </div>
 
-    <!-- RESULT VIEW (간단) -->
-    <div id="resultView" class="hidden">
-      <h2 id="resultText">결과</h2>
-      <div>획득 점수: <span id="lastScore">0</span></div>
-      <div><button id="backHome">홈으로</button></div>
-    </div>
+  <!-- RESULT VIEW (간단) -->
+<div id="resultView" class="hidden">
+  <h2 id="resultText">결과</h2>
+  <div>획득 점수: <span id="lastScore">0</span></div>
 
+  <!-- 🔥 닉네임 입력 + 점수 저장 버튼 추가 -->
+  <div style="margin-top:10px;">
+    <input id="usernameInput" placeholder="닉네임 입력" style="padding:6px; border:1px solid #ccc; border-radius:4px;" />
+    <button id="saveScoreBtn" class="small">점수 저장</button>
   </div>
+
+  <div style="margin-top:10px;">
+    <button id="backHome">홈으로</button>
+  </div>
+</div>
 
   <!-- 레시피북 팝업 (텍스트 팝업) -->
   <div id="recipePopup" class="overlay hidden">
