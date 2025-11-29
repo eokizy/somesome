@@ -297,3 +297,16 @@ document.getElementById('giveUpBtn').onclick = () => {
   alert('포기했습니다! 최종 점수: ' + state.score);
   showView('home');     // 홈 화면으로 이동
 }
+
+document.getElementById('saveScoreBtn').onclick = async () => {
+  const name = document.getElementById('playerName').value.trim();
+  if(!name){
+    alert("이름을 입력해주세요!");
+    return;
+  }
+
+  await window.addScore(name, state.score);
+  alert("점수가 저장되었습니다!");
+
+  showRanking(); // TOP10 불러오기
+};
