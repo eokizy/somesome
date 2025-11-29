@@ -359,6 +359,46 @@ showView('home');
 
 // give up 버튼 (중복 방지: 위에서 attach 되어 있으면 덮어쓰지 않음)
 // 이미 위에서 giveUpBtn 연결
+document.getElementById("giveUpBtn").addEventListener("click", async () => {
+
+    // 현재 점수
+    let score = currentScore;  
+
+    try {
+        // 1) 점수 저장
+        await addDoc(collection(db, "scores"), {
+            score: score,
+            timestamp: new Date()
+        });
+
+        console.log("점수 저장 완료:", score);
+
+        // 2) 최고 점수 불러오기
+        const q = query(
+            collection(db, "scores"),
+            orderBy("score", "desc"),
+            limit(1)
+        );
+
+        const snapshot = await getDocs(q);
+        let bestScore = 0;
+
+        snapshot.forEach(doc => {
+            bestScore = doc.data().score;
+        });
+
+        // 3) home view에 반영
+        document.getElementById("bestScore").innerText = bestScore;
+
+        alert("포기! 점수가 저장되었습니다.\n최고 점수: " + bestScore);
+
+        // 4) home으로 이동
+        showView("homeView");
+
+    } catch (e) {
+        console.error("점수 저장 오류:", e);
+    }
+});
 
 // 저장 버튼 처리는 위에서 이미 구현
 
