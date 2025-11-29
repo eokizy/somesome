@@ -310,3 +310,16 @@ document.getElementById('saveScoreBtn').onclick = async () => {
 
   showRanking(); // TOP10 불러오기
 };
+
+async function showRanking(){
+  const list = await window.getTop10();
+  const box = document.getElementById('rankingList');
+  
+  box.innerHTML = "<h3>🏆 TOP 10 랭킹</h3>";
+
+  list.forEach((item, i) => {
+    box.innerHTML += `
+      <div>${i+1}위 | ${item.name} - ${item.score}</div>
+    `;
+  });
+}
