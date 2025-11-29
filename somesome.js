@@ -12,11 +12,14 @@ let state = {
 };
 
 // DOM 참조
-const homeView = document.getElementById('homeView');
-const optionsView = document.getElementById('optionsView');
-const gameView = document.getElementById('gameView');
-const resultView = document.getElementById('resultView');
-const recipePopup = document.getElementById('recipePopup');
+const homeView = document.getElementById("homeView");
+const optionsView = document.getElementById("optionsView");
+const gameView = document.getElementById("gameView");
+const resultView = document.getElementById("resultView");
+const rankingView = document.getElementById("rankingView");
+
+const totalTimerDisplay = document.getElementById("totalTimer");
+const scoreDisplay = document.getElementById("score");
 
 // 버튼들
 document.getElementById('startBtn').onclick = startGame;
@@ -62,16 +65,18 @@ function renderRecipeBook(){
 }
 
 // 화면 전환 도우미
-function showView(name){
-  homeView.classList.add('hidden');
-  optionsView.classList.add('hidden');
-  gameView.classList.add('hidden');
-  resultView.classList.add('hidden');
+function showView(name) {
+  homeView.classList.add("hidden");
+  optionsView.classList.add("hidden");
+  gameView.classList.add("hidden");
+  resultView.classList.add("hidden");
+  rankingView.classList.add("hidden");
 
-  if(name==='home') homeView.classList.remove('hidden');
-  if(name==='options') optionsView.classList.remove('hidden');
-  if(name==='game') gameView.classList.remove('hidden');
-  if(name==='result') resultView.classList.remove('hidden');
+  if (name === "home") homeView.classList.remove("hidden");
+  if (name === "options") optionsView.classList.remove("hidden");
+  if (name === "game") gameView.classList.remove("hidden");
+  if (name === "result") resultView.classList.remove("hidden");
+  if (name === "ranking") rankingView.classList.remove("hidden");
 }
 
 // 게임 시작
@@ -174,20 +179,6 @@ function startTimer(){
   },1000);
 }
 function stopTimer(){ if(state.timerId) clearInterval(state.timerId); state.timerId = null; }
-
-// 남은 게임시간 표시
-function startTotalTimer(){
-  updateTotalTimerDisplay();
-  state.totalTimerId = setInterval(()=>{
-    state.totalTime--;
-    updateTotalTimerDisplay();
-
-    if(state.totalTime <= 0){
-      stopTotalTimer();
-      saveScoreAndReturnHome();  // 전체 시간이 끝나면 점수 저장 후 홈 화면 이동
-    }
-  }, 1000);
-}
 
 function updateTotalTimerDisplay(){
   const minutes = Math.floor(state.totalTime / 60);
