@@ -135,3 +135,39 @@
 <script src="recipes.js"></script>
 <!-- 게임 로직 불러오기 -->
 <script src="somesome.js"></script>
+
+<script type="module">
+  // Firebase SDK 가져오기
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js";
+  import { getFirestore, collection, addDoc, query, orderBy, limit, getDocs } 
+    from "https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore.js";
+
+  // ⭐ 너의 firebase 설정 붙여넣기
+  const firebaseConfig = {
+    apiKey: "너의-apiKey",
+    authDomain: "너의-authDomain",
+    projectId: "너의-projectId",
+    storageBucket: "너의-storageBucket",
+    messagingSenderId: "너의-messagingSenderId",
+    appId: "너의-appId"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  // 다른 JS 파일에서 쓰기 위해 window에 등록
+  window.db = db;
+  window.addScore = async function(name, score){
+    await addDoc(collection(db, "scores"), {
+      name,
+      score,
+      time: Date.now()
+    });
+  };
+
+  window.getTop10 = async function(){
+    const q = query(collection(db, "scores"), orderBy("score", "desc"), limit(10));
+    const snap = await getDocs(q);
+    return snap.docs.map(d=>d.data());
+  };
+</script>
