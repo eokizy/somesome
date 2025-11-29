@@ -299,20 +299,21 @@ document.getElementById('giveUpBtn').onclick = () => {
 }
 
 document.getElementById('saveScoreBtn').onclick = async () => {
-  const name = document.getElementById('playerName').value.trim();
+  const name = document.getElementById('usernameInput').value.trim();  
   if(!name){
     alert("이름을 입력해주세요!");
     return;
   }
 
-  await window.addScore(name, state.score);
+  // Firebase 반영된 함수 사용
+  await window.saveScore(name, state.score);
   alert("점수가 저장되었습니다!");
 
   showRanking(); // TOP10 불러오기
 };
 
 async function showRanking(){
-  const list = await window.getTop10();
+  const list = await window.getTop10Scores();  // Firebase에서 TOP10 가져오기
   const box = document.getElementById('rankingList');
   
   box.innerHTML = "<h3>🏆 TOP 10 랭킹</h3>";
