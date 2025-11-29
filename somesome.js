@@ -324,3 +324,35 @@ async function showRanking(){
     `;
   });
 }
+
+// 🔥 Ranking View 표시
+document.getElementById("rankingBtn").onclick = async () => {
+  showView("rankingView"); // 화면 전환 함수 (이미 있음)
+  loadRanking();
+};
+
+// 뒤로가기
+document.getElementById("rankingBackBtn").onclick = () => {
+  showView("homeView");
+};
+
+// 🔥 TOP 10 불러와서 표시하는 함수
+async function loadRanking() {
+  const box = document.getElementById("rankingContent");
+  box.innerHTML = "불러오는 중...";
+
+  try {
+    const list = await window.getTop10Scores();
+
+    let html = "<ol>";
+    list.forEach((item, i) => {
+      html += `<li>${item.name} — ${item.score}</li>`;
+    });
+    html += "</ol>";
+
+    box.innerHTML = html;
+  } catch (e) {
+    console.error(e);
+    box.innerHTML = "랭킹을 불러오는 중 오류 발생!";
+  }
+}
