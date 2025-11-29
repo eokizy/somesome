@@ -1,422 +1,437 @@
+// somesome.js - 수정 완전본
+
 // 상태 변수
 let state = {
-  timeLimit:10,
-  filter:'all', // all | Hot | Ice
-  current:null,
-  timerId:null,
-  remaining:0,
-  score:0,
-  combo:0,
-  totalTime:120,      // 전체 게임 제한 시간 3분
-  totalTimerId:null
+  timeLimit: 10,
+  filter: 'all', // all | Hot | Ice
+  current: null,
+  timerId: null,
+  remaining: 0,
+  score: 0,
+  combo: 0,
+  totalTime: 120,      // 전체 게임 제한 시간 (초)
+  totalTimerId: null
 };
 
-// DOM 참조
-const homeView = document.getElementById("homeView");
-const optionsView = document.getElementById("optionsView");
-const gameView = document.getElementById("gameView");
-const resultView = document.getElementById("resultView");
-const rankingView = document.getElementById("rankingView");
+// DOM 참조 (존재 여부 체크 포함)
+const homeView = document.getElementById('homeView');
+const optionsView = document.getElementById('optionsView');
+const gameView = document.getElementById('gameView');
+const resultView = document.getElementById('resultView');
+const rankingView = document.getElementById('rankingView') || null;
 
-const totalTimerDisplay = document.getElementById("totalTimer");
-const scoreDisplay = document.getElementById("score");
+const totalTimerEl = document.getElementById('totalTimer');
+const scoreEl = document.getElementById('score');
 
-// 버튼들
-document.getElementById('startBtn').onclick = startGame;
-document.getElementById('openBookBtn').onclick = openBook;
-document.getElementById('optionsBtn').onclick = ()=>showView('options');
-document.getElementById('quitBtn').onclick = ()=>alert('창을 닫거나 새로고침 해주세요.');
-document.getElementById('backFromOptions').onclick = ()=>showView('home');
-document.getElementById('closeBook').onclick = closeBook;
-document.getElementById('filterAll').onclick = ()=>{state.filter='all'; document.getElementById('currentMode').innerText='모든 메뉴';}
-document.getElementById('filterHot').onclick = ()=>{state.filter='Hot'; document.getElementById('currentMode').innerText='Hot만';}
-document.getElementById('filterIce').onclick = ()=>{state.filter='Ice'; document.getElementById('currentMode').innerText='Ice만';}
+// 안전: 필요한 엘리먼트가 없으면 경고
+function ensure(id) {
+  const el = document.getElementById(id);
+  if (!el) console.warn(`DOM element not found: #${id}`);
+  return el;
+}
 
-document.querySelectorAll('[data-t]').forEach(b=>b.onclick=(e)=>{state.timeLimit = Number(e.target.dataset.t); alert('타이머를 '+state.timeLimit+'초로 설정했습니다');});
+// 버튼들 (존재하면 이벤트 연결)
+const startBtn = ensure('startBtn');
+if (startBtn) startBtn.onclick = startGame;
+const openBookBtn = ensure('openBookBtn');
+if (openBookBtn) openBookBtn.onclick = openBook;
+const optionsBtn = ensure('optionsBtn');
+if (optionsBtn) optionsBtn.onclick = () => showView('options');
+const quitBtn = ensure('quitBtn');
+if (quitBtn) quitBtn.onclick = () => alert('창을 닫거나 새로고침 해주세요.');
+const backFromOptionsBtn = ensure('backFromOptions');
+if (backFromOptionsBtn) backFromOptionsBtn.onclick = () => showView('home');
+const closeBookBtn = ensure('closeBook');
+if (closeBookBtn) closeBookBtn.onclick = closeBook;
+const giveUpBtn = ensure('giveUpBtn');
+if (giveUpBtn) giveUpBtn.onclick = () => { stopTimer(); showResult(false); };
+const backHomeBtn = ensure('backHome');
+if (backHomeBtn) backHomeBtn.onclick = () => showView('home');
 
-document.getElementById('giveUpBtn').onclick = ()=>{stopTimer(); showResult(false)};
-document.getElementById('backHome').onclick = ()=>{showView('home')};
+const saveScoreBtn = ensure('saveScoreBtn');
+if (saveScoreBtn) {
+  saveScoreBtn.onclick = async () => {
+    const nameInput = ensure('usernameInput');
+    const name = nameInput ? nameInput.value.trim() : '';
+    if (!name) {
+      alert('이름을 입력해주세요!');
+      return;
+    }
+
+    // window.saveScore 는 HTML의 Firebase 모듈 스크립트에서 제공해야 함
+    if (typeof window.saveScore !== 'function') {
+      alert('Firebase가 준비되지 않았습니다.');
+      console.error('window.saveScore is not a function');
+      return;
+    }
+
+    try {
+      await window.saveScore(name, state.score);
+      alert('점수가 저장되었습니다!');
+      // 결과 화면의 랭킹 영역 갱신
+      await showRankingInResult();
+    } catch (e) {
+      console.error('점수 저장 실패', e);
+      alert('점수 저장에 실패했습니다. 콘솔을 확인하세요.');
+    }
+  };
+}
+
+// 데이터-타이머 버튼들 (data-t)
+document.querySelectorAll('[data-t]').forEach(b => {
+  b.onclick = (e) => {
+    const sec = Number(e.target.dataset.t);
+    if (!isNaN(sec)) {
+      state.timeLimit = sec;
+      alert('타이머를 ' + state.timeLimit + '초로 설정했습니다');
+    }
+  };
+});
+
+// 필터 버튼
+const filterAllBtn = ensure('filterAll');
+if (filterAllBtn) filterAllBtn.onclick = () => { state.filter = 'all'; ensure('currentMode').innerText = '모든 메뉴'; };
+const filterHotBtn = ensure('filterHot');
+if (filterHotBtn) filterHotBtn.onclick = () => { state.filter = 'Hot'; ensure('currentMode').innerText = 'Hot만'; };
+const filterIceBtn = ensure('filterIce');
+if (filterIceBtn) filterIceBtn.onclick = () => { state.filter = 'Ice'; ensure('currentMode').innerText = 'Ice만'; };
 
 // 레시피북 열기/닫기
-function openBook(){
+const recipePopup = document.getElementById('recipePopup');
+function openBook() {
   renderRecipeBook();
-  recipePopup.classList.remove('hidden');
+  if (recipePopup) recipePopup.classList.remove('hidden');
 }
-function closeBook(){ recipePopup.classList.add('hidden'); }
+function closeBook() {
+  if (recipePopup) recipePopup.classList.add('hidden');
+}
 
-function renderRecipeBook(){
+function renderRecipeBook() {
+  if (typeof RECIPES === 'undefined') {
+    console.warn('RECIPES 데이터가 없습니다.');
+    ensure('recipeContent').innerText = '레시피 데이터가 없습니다.';
+    return;
+  }
   const grouped = {};
-  RECIPES.forEach(r=>{
-    if(!grouped[r.menu]) grouped[r.menu]={};
-    grouped[r.menu][r.temp]=r.steps;
+  RECIPES.forEach(r => {
+    if (!grouped[r.menu]) grouped[r.menu] = {};
+    grouped[r.menu][r.temp] = r.steps;
   });
   let out = '';
-  Object.keys(grouped).forEach(menu=>{
+  Object.keys(grouped).forEach(menu => {
     out += `"${menu}"\n`;
-    ['Hot','Ice'].forEach(t=>{
-      if(grouped[menu][t]){
+    ['Hot', 'Ice'].forEach(t => {
+      if (grouped[menu][t]) {
         out += `  (${t})\n`;
-        grouped[menu][t].forEach((s,i)=> out += `    ${i+1}. ${s}\n`);
+        grouped[menu][t].forEach((s, i) => out += `    ${i+1}. ${s}\n`);
       }
     });
     out += '\n';
   });
-  document.getElementById('recipeContent').innerText = out;
+  const rc = ensure('recipeContent');
+  if (rc) rc.innerText = out;
 }
 
 // 화면 전환 도우미
 function showView(name) {
-  homeView.classList.add("hidden");
-  optionsView.classList.add("hidden");
-  gameView.classList.add("hidden");
-  resultView.classList.add("hidden");
-  rankingView.classList.add("hidden");
+  // 숨기기
+  if (homeView) homeView.classList.add('hidden');
+  if (optionsView) optionsView.classList.add('hidden');
+  if (gameView) gameView.classList.add('hidden');
+  if (resultView) resultView.classList.add('hidden');
+  if (rankingView) rankingView.classList.add('hidden');
 
-  if (name === "home") homeView.classList.remove("hidden");
-  if (name === "options") optionsView.classList.remove("hidden");
-  if (name === "game") gameView.classList.remove("hidden");
-  if (name === "result") resultView.classList.remove("hidden");
-  if (name === "ranking") rankingView.classList.remove("hidden");
+  // 보이기
+  if (name === 'home' && homeView) homeView.classList.remove('hidden');
+  if (name === 'options' && optionsView) optionsView.classList.remove('hidden');
+  if (name === 'game' && gameView) gameView.classList.remove('hidden');
+  if (name === 'result' && resultView) resultView.classList.remove('hidden');
+  if (name === 'ranking' && rankingView) rankingView.classList.remove('hidden');
 }
 
 // 게임 시작
-function startGame(){
-  state.score = 0; 
+function startGame() {
+  state.score = 0;
   state.combo = 0;
-  document.getElementById('score').innerText = state.score;
-  
+  const scoreElLocal = ensure('score');
+  if (scoreElLocal) scoreElLocal.innerText = state.score;
+
   showView('game');
 
   // 전체 게임 타이머 초기화
   state.totalTime = 120;
+  updateTotalTimerDisplay();
   startTotalTimer();
 
   nextProblem();
 }
 
-// 전체 게임 타이머
-function startTotalTimer(){
-  state.totalTimerId = setInterval(()=>{
+// 전체 게임 타이머 (하나로 통일)
+function startTotalTimer() {
+  // 안전: 기존 타이머 정리
+  if (state.totalTimerId) clearInterval(state.totalTimerId);
+  updateTotalTimerDisplay();
+  state.totalTimerId = setInterval(() => {
     state.totalTime--;
-    if(state.totalTime <= 0){
+    updateTotalTimerDisplay();
+    if (state.totalTime <= 0) {
       stopTotalTimer();
+      // 전체 시간이 끝나면 결과 화면으로
       showResult(false);
       alert('TIME OVER!');
     }
   }, 1000);
 }
-function stopTotalTimer(){
-  if(state.totalTimerId) clearInterval(state.totalTimerId);
+function stopTotalTimer() {
+  if (state.totalTimerId) clearInterval(state.totalTimerId);
   state.totalTimerId = null;
 }
 
+function updateTotalTimerDisplay() {
+  const minutes = Math.floor(state.totalTime / 60);
+  const seconds = state.totalTime % 60;
+  const formatted = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  if (totalTimerEl) totalTimerEl.innerText = formatted;
+}
+
 // 문제 선택
-function pickRandomRecipe(){
-  const pool = RECIPES.filter(r=> state.filter==='all' || r.temp===state.filter);
-  if(pool.length===0) return null;
-  const idx = Math.floor(Math.random()*pool.length);
+function pickRandomRecipe() {
+  if (typeof RECIPES === 'undefined') return null;
+  const pool = RECIPES.filter(r => state.filter === 'all' || r.temp === state.filter);
+  if (pool.length === 0) return null;
+  const idx = Math.floor(Math.random() * pool.length);
   return JSON.parse(JSON.stringify(pool[idx])); // 복제
 }
 
 // 다음 문제
-function nextProblem(){
+function nextProblem() {
   clearStateForProblem();
 
   const chosen = pickRandomRecipe();
-  if(!chosen){ 
-    alert('조건에 맞는 레시피가 없습니다. 옵션을 확인하세요.'); 
-    showView('home'); 
-    return; 
+  if (!chosen) {
+    alert('조건에 맞는 레시피가 없습니다. 옵션을 확인하세요.');
+    showView('home');
+    return;
   }
   state.current = chosen;
-  document.getElementById('menuTitle').innerText = chosen.menu;
-  document.getElementById('menuTemp').innerText = chosen.temp;
+  const menuTitle = ensure('menuTitle');
+  const menuTemp = ensure('menuTemp');
+  if (menuTitle) menuTitle.innerText = chosen.menu;
+  if (menuTemp) menuTemp.innerText = chosen.temp;
 
   // 슬롯 렌더
-  const slots = document.getElementById('slots'); 
-  slots.innerHTML='';
-  chosen.steps.forEach(()=>{
-    const s = document.createElement('div'); 
-    s.className='slot'; 
-    s.innerText='___'; 
-    slots.appendChild(s);
-  });
+  const slots = ensure('slots');
+  if (slots) {
+    slots.innerHTML = '';
+    chosen.steps.forEach(() => {
+      const s = document.createElement('div');
+      s.className = 'slot';
+      s.innerText = '___';
+      slots.appendChild(s);
+    });
+  }
 
   // 재료 목록 랜덤 배치
-  const ing = document.getElementById('ingredients'); 
-  ing.innerHTML='';
-  const shuffledSteps = [...chosen.steps].sort(() => Math.random() - 0.5);
-  shuffledSteps.forEach((it, i)=>{
-    const d = document.createElement('div'); 
-    d.className='ingredient'; 
-    d.innerText = `${i+1}. ${it}`; 
-    d.dataset.origIdx = chosen.steps.indexOf(it); 
-    d.onclick = ()=>selectIngredient(Number(d.dataset.origIdx)); 
-    ing.appendChild(d);
-  });
+  const ing = ensure('ingredients');
+  if (ing) {
+    ing.innerHTML = '';
+    const shuffledSteps = [...chosen.steps].sort(() => Math.random() - 0.5);
+    shuffledSteps.forEach((it, i) => {
+      const d = document.createElement('div');
+      d.className = 'ingredient';
+      d.innerText = `${i + 1}. ${it}`;
+      d.dataset.origIdx = chosen.steps.indexOf(it);
+      d.onclick = () => selectIngredient(Number(d.dataset.origIdx));
+      ing.appendChild(d);
+    });
+  }
 
-  // 타이머 시작
+  // 타이머 시작 (문제별)
   startTimer();
 }
 
 // 문제별 타이머 초기화
-function clearStateForProblem(){
+function clearStateForProblem() {
   stopTimer();
   state.remaining = state.timeLimit;
-  document.getElementById('timer').innerText = state.remaining;
-  document.getElementById('status').innerText = '';
-  document.getElementById('nextBtn').classList.add('hidden');
+  const timerEl = ensure('timer');
+  if (timerEl) timerEl.innerText = state.remaining;
+  const statusEl = ensure('status');
+  if (statusEl) statusEl.innerText = '';
+  const nextBtn = ensure('nextBtn');
+  if (nextBtn) nextBtn.classList.add('hidden');
 }
 
 // 문제별 타이머 시작/정지
-function startTimer(){
+function startTimer() {
   state.remaining = state.timeLimit;
-  document.getElementById('timer').innerText = state.remaining;
-  state.timerId = setInterval(()=>{
+  const timerEl = ensure('timer');
+  if (timerEl) timerEl.innerText = state.remaining;
+
+  if (state.timerId) clearInterval(state.timerId);
+  state.timerId = setInterval(() => {
     state.remaining--;
-    document.getElementById('timer').innerText = state.remaining;
-    if(state.remaining<=0){ stopTimer(); checkAnswerTimeout(); }
-  },1000);
+    if (timerEl) timerEl.innerText = state.remaining;
+    if (state.remaining <= 0) { stopTimer(); checkAnswerTimeout(); }
+  }, 1000);
 }
-function stopTimer(){ if(state.timerId) clearInterval(state.timerId); state.timerId = null; }
-
-function updateTotalTimerDisplay(){
-  const minutes = Math.floor(state.totalTime / 60);
-  const seconds = state.totalTime % 60;
-  const formatted = `${String(minutes).padStart(2,'0')}:${String(seconds).padStart(2,'0')}`;
-  document.getElementById('totalTimer').innerText = formatted;
-}
-
-function saveScoreAndReturnHome(){
-  // 최고 점수 갱신
-  const bestEl = document.getElementById('bestScore');
-  if(state.score > Number(bestEl.innerText)){
-    bestEl.innerText = state.score;
-  }
-
-  alert('TIME OVER! 최종 점수: ' + state.score);
-  showView('home');  // 홈 화면으로 이동
-}
-
-
+function stopTimer() { if (state.timerId) clearInterval(state.timerId); state.timerId = null; }
 
 // 재료 선택
-function selectIngredient(idx){
+function selectIngredient(idx) {
   const cur = state.current;
+  if (!cur) return;
   const slots = document.querySelectorAll('.slot');
-  const filledCount = Array.from(slots).filter(s=>s.dataset.filled==='1').length;
-  if(filledCount >= cur.steps.length) return;
+  const filledCount = Array.from(slots).filter(s => s.dataset.filled === '1').length;
+  if (filledCount >= cur.steps.length) return;
 
   const chosenText = cur.steps[idx];
   slots[filledCount].innerText = chosenText;
   slots[filledCount].dataset.filled = '1';
 
   let ok = true;
-  for(let i=0;i<filledCount+1;i++){
-    if(slots[i].innerText !== cur.steps[i]){ ok = false; break; }
+  for (let i = 0; i < filledCount + 1; i++) {
+    if (slots[i].innerText !== cur.steps[i]) { ok = false; break; }
   }
 
-  if(!ok){
+  if (!ok) {
     stopTimer();
     state.combo = 0;
     state.score = Math.max(0, state.score - 20);
-    document.getElementById('score').innerText = state.score;
-    document.getElementById('status').innerText = '오답! -20점';
-    document.getElementById('nextBtn').classList.remove('hidden');
+    const scoreElLocal = ensure('score');
+    if (scoreElLocal) scoreElLocal.innerText = state.score;
+    const statusEl = ensure('status');
+    if (statusEl) statusEl.innerText = '오답! -20점';
+    const nextBtn = ensure('nextBtn');
+    if (nextBtn) nextBtn.classList.remove('hidden');
     return;
   }
 
-  const allFilled = Array.from(slots).every(s=>s.dataset.filled==='1');
-  if(allFilled){
+  const allFilled = Array.from(slots).every(s => s.dataset.filled === '1');
+  if (allFilled) {
     stopTimer();
     const base = 100;
     const timeBonus = state.remaining * 5;
     state.combo += 1;
-    const comboBonus = (state.combo>1)? state.combo*10 : 0;
+    const comboBonus = (state.combo > 1) ? state.combo * 10 : 0;
     const gained = base + timeBonus + comboBonus;
     state.score += gained;
-    document.getElementById('score').innerText = state.score;
-    document.getElementById('status').innerText = `정답! +${gained} (기본${base} + 시간보너스${timeBonus} + 콤보${comboBonus})`;
-    document.getElementById('nextBtn').classList.remove('hidden');
+    const scoreElLocal = ensure('score');
+    if (scoreElLocal) scoreElLocal.innerText = state.score;
+    const statusEl = ensure('status');
+    if (statusEl) statusEl.innerText = `정답! +${gained} (기본${base} + 시간보너스${timeBonus} + 콤보${comboBonus})`;
+    const nextBtn = ensure('nextBtn');
+    if (nextBtn) nextBtn.classList.remove('hidden');
   }
 }
 
-//시간 초과
-function checkAnswerTimeout(){
-  // 콤보 초기화
+// 시간 초과
+function checkAnswerTimeout() {
   state.combo = 0;
-
-  // 점수 감점
   const penalty = 100;
   state.score = Math.max(0, state.score - penalty);
-  document.getElementById('score').innerText = state.score;
-
-  // 상태 메시지 표시
-  document.getElementById('status').innerText = `시간 초과! -${penalty}점`;
-  
-  // 다음 문제 버튼 표시
-  document.getElementById('nextBtn').classList.remove('hidden');
+  const scoreElLocal = ensure('score');
+  if (scoreElLocal) scoreElLocal.innerText = state.score;
+  const statusEl = ensure('status');
+  if (statusEl) statusEl.innerText = `시간 초과! -${penalty}점`;
+  const nextBtn = ensure('nextBtn');
+  if (nextBtn) nextBtn.classList.remove('hidden');
 }
 
-
 // 다음 문제 버튼
-document.getElementById('nextBtn').onclick = ()=>{ nextProblem(); };
+const nextBtn = ensure('nextBtn');
+if (nextBtn) nextBtn.onclick = () => nextProblem();
 
 // 결과 화면
-function showResult(success){
-  document.getElementById('lastScore').innerText = state.score;
-  if(state.score > Number(document.getElementById('bestScore').innerText)){
-    document.getElementById('bestScore').innerText = state.score;
-  }
+function showResult(success) {
+  const lastScoreEl = ensure('lastScore');
+  if (lastScoreEl) lastScoreEl.innerText = state.score;
+  const bestEl = ensure('bestScore');
+  if (bestEl && state.score > Number(bestEl.innerText)) bestEl.innerText = state.score;
   stopTotalTimer();
   showView('result');
+  // 결과 화면에 진입하면 결과 랭킹도 갱신
+  showRankingInResult();
 }
 
 // 초기화: 홈으로
 showView('home');
 
-document.getElementById('giveUpBtn').onclick = () => {
-  stopTimer();          // 현재 문제 타이머 멈춤
-  stopTotalTimer();     // 전체 게임 타이머 멈춤 (총 3분 타이머)
-  
-  // 최고 점수 갱신
-  const bestEl = document.getElementById('bestScore');
-  if(state.score > Number(bestEl.innerText)){
-    bestEl.innerText = state.score;
-  }
+// give up 버튼 (중복 방지: 위에서 attach 되어 있으면 덮어쓰지 않음)
+// 이미 위에서 giveUpBtn 연결
 
-  alert('포기했습니다! 최종 점수: ' + state.score);
-  showView('home');     // 홈 화면으로 이동
-}
+// 저장 버튼 처리는 위에서 이미 구현
 
-document.getElementById('saveScoreBtn').onclick = async () => {
-  const name = document.getElementById('usernameInput').value.trim();  
-  if(!name){
-    alert("이름을 입력해주세요!");
+// 결과 화면의 랭킹 표시 함수 (resultView 내 rankingList)
+async function showRankingInResult() {
+  const box = ensure('rankingList');
+  if (!box) return;
+  box.innerHTML = '<h3>불러오는 중...</h3>';
+
+  if (typeof window.getTop10Scores !== 'function') {
+    box.innerHTML = '<div>랭킹을 불러올 수 없습니다(파이어베이스 미설정).</div>';
     return;
   }
 
-  // Firebase 반영된 함수 사용
-  await window.saveScore(name, state.score);
-  alert("점수가 저장되었습니다!");
-
-  showRanking(); // TOP10 불러오기
-};
-
-async function showRanking(){
-  const list = await window.getTop10Scores();  // Firebase에서 TOP10 가져오기
-  const box = document.getElementById('rankingList');
-  
-  box.innerHTML = "<h3>🏆 TOP 10 랭킹</h3>";
-
-  list.forEach((item, i) => {
-    box.innerHTML += `
-      <div>${i+1}위 | ${item.name} - ${item.score}</div>
-    `;
-  });
+  try {
+    const list = await window.getTop10Scores();
+    box.innerHTML = '<h3>🏆 TOP 10 랭킹</h3>';
+    if (!list || list.length === 0) {
+      box.innerHTML += '<div>아직 점수가 없습니다.</div>';
+      return;
+    }
+    list.forEach((item, i) => {
+      box.innerHTML += `<div>${i + 1}위 | ${item.name} - ${item.score}</div>`;
+    });
+  } catch (e) {
+    console.error('showRankingInResult error', e);
+    box.innerHTML = '<div>랭킹 불러오기 실패</div>';
+  }
 }
 
-// 🔥 Ranking View 표시
-document.getElementById("rankingBtn").onclick = async () => {
-  showView("rankingView"); // 화면 전환 함수 (이미 있음)
-  loadRanking();
-};
+// -----------------------------
+// Ranking View (독립 페이지) 관련
+// -----------------------------
+const rankingBtn = ensure('rankingBtn');
+const rankingContent = ensure('rankingContent');
+const rankingBackBtn = ensure('rankingBackBtn');
 
-// 뒤로가기
-document.getElementById("rankingBackBtn").onclick = () => {
-  showView("homeView");
-};
+if (rankingBtn) {
+  rankingBtn.onclick = async () => {
+    showView('ranking');
+    await loadRanking();
+  };
+}
+if (rankingBackBtn) {
+  rankingBackBtn.onclick = () => {
+    showView('home');
+  };
+}
 
-// 🔥 TOP 10 불러와서 표시하는 함수
 async function loadRanking() {
-  const box = document.getElementById("rankingContent");
-  box.innerHTML = "불러오는 중...";
+  const box = rankingContent;
+  if (!box) return;
+  box.innerHTML = '불러오는 중...';
+
+  if (typeof window.getTop10Scores !== 'function') {
+    box.innerHTML = '파이어베이스가 준비되지 않았습니다.';
+    return;
+  }
 
   try {
     const list = await window.getTop10Scores();
-
-    let html = "<ol>";
+    if (!list || list.length === 0) {
+      box.innerHTML = '<div>아직 점수가 없습니다.</div>';
+      return;
+    }
+    let html = '<ol>';
     list.forEach((item, i) => {
-      html += `<li>${item.name} — ${item.score}</li>`;
+      html += `<li>${i + 1}위 — ${item.name} — ${item.score}점</li>`;
     });
-    html += "</ol>";
-
+    html += '</ol>';
     box.innerHTML = html;
   } catch (e) {
-    console.error(e);
-    box.innerHTML = "랭킹을 불러오는 중 오류 발생!";
+    console.error('loadRanking error', e);
+    box.innerHTML = '랭킹을 불러오는 중 오류 발생!';
   }
 }
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js";
-  import { getFirestore, collection, addDoc, query, orderBy, limit, getDocs } 
-    from "https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore.js";
-
-  const firebaseConfig = {
-    apiKey: "AIzaSyD6MCzGTSI4ECLqg7FjKOKwsL-rLNH5YAg",
-    authDomain: "somesome-b9a49.firebaseapp.com",
-    projectId: "somesome-b9a49",
-    storageBucket: "somesome-b9a49.firebasestorage.app",
-    messagingSenderId: "237879091690",
-    appId: "1:237879091690:web:5e1b5ea6908904f978d293",
-    measurementId: "G-4QN3DYJJFB"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
-
-  async function saveScore(name, score) {
-    await addDoc(collection(db, "scores"), {
-      name: name,
-      score: score,
-      timestamp: Date.now()
-    });
-  }
-
-  async function getTop10Scores() {
-    const q = query(
-      collection(db, "scores"),
-      orderBy("score", "desc"),
-      limit(10)
-    );
-    const snapshot = await getDocs(q);
-    let list = [];
-
-    snapshot.forEach(doc => {
-      list.push(doc.data());
-    });
-
-    return list;
-  }
-
-  window.saveScore = saveScore;
-  window.getTop10Scores = getTop10Scores;
-
-  const rankingBtn = document.getElementById("rankingBtn");
-  const rankingView = document.getElementById("rankingView");
-  const rankingContent = document.getElementById("rankingContent");
-  const rankingBackBtn = document.getElementById("rankingBackBtn");
-  const homeView = document.getElementById("homeView");
-
-  rankingBtn.addEventListener("click", async () => {
-    homeView.classList.add("hidden");
-    rankingView.classList.remove("hidden");
-
-    // 데이터 가져오기
-    const top10 = await getTop10Scores();
-
-    // HTML 변환
-    let html = "<ol>";
-    top10.forEach((item, i) => {
-      html += `<li>${i + 1}위 - ${item.name} : ${item.score}점</li>`;
-    });
-    html += "</ol>";
-
-    rankingContent.innerHTML = html;
-  });
-
-  rankingBackBtn.addEventListener("click", () => {
-    rankingView.classList.add("hidden");
-    homeView.classList.remove("hidden");
-  });
-</script>
