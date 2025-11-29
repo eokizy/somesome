@@ -144,30 +144,45 @@
 
   // ⭐ 너의 firebase 설정 붙여넣기
   const firebaseConfig = {
-    apiKey: "너의-apiKey",
-    authDomain: "너의-authDomain",
-    projectId: "너의-projectId",
-    storageBucket: "너의-storageBucket",
-    messagingSenderId: "너의-messagingSenderId",
-    appId: "너의-appId"
+    apiKey: "AIzaSyD6MCzGTSI4ECLqg7FjKOKwsL-rLNH5YAg",
+    authDomain: "somesome-b9a49.firebaseapp.com",
+    projectId: "somesome-b9a49",
+    storageBucket: "somesome-b9a49.firebasestorage.app",
+    messagingSenderId: "237879091690",
+    appId: "1:237879091690:web:5e1b5ea6908904f978d293",
+    measurementId: "G-4QN3DYJJFB"
   };
-
+  
+   // Firebase 초기화
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
 
-  // 다른 JS 파일에서 쓰기 위해 window에 등록
-  window.db = db;
-  window.addScore = async function(name, score){
+  // 점수 저장(이름 + 점수)
+  async function saveScore(name, score) {
     await addDoc(collection(db, "scores"), {
-      name,
-      score,
-      time: Date.now()
+      name: name,
+      score: score,
+      timestamp: Date.now()
     });
-  };
+  }
 
-  window.getTop10 = async function(){
-    const q = query(collection(db, "scores"), orderBy("score", "desc"), limit(10));
-    const snap = await getDocs(q);
-    return snap.docs.map(d=>d.data());
-  };
+  // TOP 10 조회
+  async function getTop10Scores() {
+    const q = query(
+      collection(db, "scores"),
+      orderBy("score", "desc"),
+      limit(10)
+    );
+
+    const snapshot = await getDocs(q);
+    let results = [];
+    snapshot.forEach(doc => {
+      results.push(doc.data());
+    });
+    return results;
+  }
+
+  // 전역에서 쓰기 쉽게 window에 붙여주기
+  window.saveScore = saveScore;
+  window.getTop10Scores = getTop10Scores;
 </script>
